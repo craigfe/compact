@@ -1,0 +1,7 @@
+version = 0.20.0
+profile = conventional
+
+parse-docstrings
+break-infix = fit-or-vertical
+break-separators = before
+dock-collection-brackets = false

@@ -1,0 +1,11 @@
+(executable
+ (name main)
+ (libraries
+  mtime
+  mtime.clock.os
+  base
+  compact
+  containers-data
+  hashset
+  memtrace)
+ (ocamlopt_flags -O3))
