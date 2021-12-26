@@ -17,18 +17,9 @@ type ('k, 'v, 'packed, 's, 'entry, 'bucket) unboxed =
   ; mutable hashtbl : 'bucket Array.t
   ; mutable bucket_count_log2 : int
   ; mutable cardinal : int
-  ; key_impl :
-      (module Key
-         with type t = 'k
-          and type packed = 'packed
-          and type decoder = 's)
-  ; entry_impl :
-      (module Entry
-         with type t = 'entry
-          and type key = 'k
-          and type value = 'v
-          and type packed = 'packed
-          and type decoder = 's)
+  ; mutable mutation_allowed : bool (* Set during all iteration operations *)
+  ; key_impl : ('k, 's, 'packed) key_impl
+  ; entry_impl : ('k, 'v, 'packed, 's, 'entry) entry_impl
   }
 
 type (_, _, _, _, _) internal =
@@ -38,6 +29,21 @@ type (_, _, _, _, _) internal =
 [@@ocaml.unboxed]
 
 type ('a, 'b, 'c, 'd, 'e) t = ('a, 'b, 'c, 'd, 'e) internal
+
+let ensure_mutation_allowed ~__FUNCTION__:ctx t =
+  if not t.mutation_allowed then
+    Format.kasprintf failwith "%s: mutation not allowed during iteration" ctx
+
+let with_mutation_disallowed t ~f =
+  let m = t.mutation_allowed in
+  t.mutation_allowed <- false;
+  match f () with
+  | a ->
+      t.mutation_allowed <- m;
+      a
+  | exception exn ->
+      t.mutation_allowed <- m;
+      raise exn
 
 let create ~key:key_impl ~entry:entry_impl ~initial_capacity ~entry_size () =
   let bucket_count_log2, bucket_count =
@@ -53,6 +59,7 @@ let create ~key:key_impl ~entry:entry_impl ~initial_capacity ~entry_size () =
     { hashtbl
     ; bucket_count_log2
     ; cardinal = 0
+    ; mutation_allowed = true
     ; entry_size
     ; key_impl
     ; entry_impl
@@ -63,6 +70,7 @@ module T = struct
   let cardinal (T t) = t.cardinal
 
   let clear (T t) =
+    ensure_mutation_allowed ~__FUNCTION__ t;
     let empty = Bucket.empty t.entry_size in
     t.hashtbl <- [| empty |];
     t.bucket_count_log2 <- 0;
@@ -124,6 +132,7 @@ module T = struct
   let replace : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> c -> unit
       =
    fun (T t) ~decoder key offset ->
+    ensure_mutation_allowed ~__FUNCTION__ t;
     let (module Key) = t.key_impl in
     if t.cardinal > 2 * Array.length t.hashtbl then resize (T t) decoder;
     let elt_idx = elt_index (T t) key in
@@ -139,6 +148,7 @@ module T = struct
 
   let remove : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> unit =
    fun (T t) ~decoder key ->
+    ensure_mutation_allowed ~__FUNCTION__ t;
     let (module Key) = t.key_impl in
     let elt_idx = elt_index (T t) key in
     let bucket = t.hashtbl.(elt_idx) in
@@ -188,18 +198,20 @@ module T = struct
       (a, b, c, d, e) t -> decoder:d -> f:(acc -> e -> acc) -> init:acc -> acc =
    fun (T t) ~decoder ~f ~init ->
     let (module Entry) = t.entry_impl in
-    Array.fold_left t.hashtbl ~init ~f:(fun acc bucket ->
-        Bucket.fold_left t.entry_size bucket ~init:acc ~f:(fun acc offset ->
-            let entry = Entry.unpack decoder offset in
-            f acc entry))
+    with_mutation_disallowed t ~f:(fun () ->
+        Array.fold_left t.hashtbl ~init ~f:(fun acc bucket ->
+            Bucket.fold_left t.entry_size bucket ~init:acc ~f:(fun acc offset ->
+                let entry = Entry.unpack decoder offset in
+                f acc entry)))
 
   let iter :
       type a b c d e. (a, b, c, d, e) t -> decoder:d -> f:(e -> unit) -> unit =
    fun (T t) ~decoder ~f ->
     let (module Entry) = t.entry_impl in
-    Array.iter t.hashtbl ~f:(fun bucket ->
-        Bucket.iter t.entry_size bucket ~f:(fun offset ->
-            f (Entry.unpack decoder offset)))
+    with_mutation_disallowed t ~f:(fun () ->
+        Array.iter t.hashtbl ~f:(fun bucket ->
+            Bucket.iter t.entry_size bucket ~f:(fun offset ->
+                f (Entry.unpack decoder offset))))
 
   let count t ~decoder ~f =
     fold t ~decoder ~init:0 ~f:(fun acc e -> if f e then acc + 1 else acc)

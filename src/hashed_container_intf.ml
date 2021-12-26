@@ -97,14 +97,22 @@ module type S = sig
 
   val copy : ('a, 'b, 'c, 'd, 'e) t -> ('a, 'b, 'c, 'd, 'e) t
 
-  (** {2 Buckets} *)
+  (** {2:bucket Buckets}
+
+      The container consists of an array of {i buckets}, each containing the
+      subset of entries that share a particular hash prefix. For a well-chosen
+      hash function, the number of elements in each bucket should be very small
+      (usually 0 or 1).
+
+      Most users should not interact with the container buckets directly (and
+      use the higher-level API above instead). *)
 
   val bucket_count : (_, _, _, _, _) t -> int
   (** Returns the number of {i buckets} in the container. A bucket is a slot in
       the container's internal hashtable, to which elements are assigned based
       on the hash value of their key. *)
 
-  (** {2 Hash policy} *)
+  (** {2:hash-policy Hash policy} *)
 
   val load_factor : (_, _, _, _, _) t -> float
   (** Returns the average number of elements per bucket. That is:

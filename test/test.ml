@@ -63,5 +63,6 @@ let () =
       , [ test "String_set.simple" String_set.test_simple
         ; test "String_set.random" String_set.test_random
         ]
-        @ Test_arena.tests )
+        @ Test_arena.tests
+        @ Test_hashed_container.tests )
     ]
