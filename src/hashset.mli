@@ -3,6 +3,10 @@
    Distributed under the MIT license. See terms at the end of this file.
   ————————————————————————————————————————————————————————————————————————————*)
 
+(** A polymorphic hashset of elements of arbitrary type. For more
+    memory-efficient implementations for specific element types, see the
+    provided {{!type-specialisations} type specialisations}. *)
+
 type 'a t
 
 module type Key = sig
@@ -19,11 +23,51 @@ val create : initial_capacity:int -> (module Key with type t = 'a) -> 'a t
 (** @inline *)
 include Hashed_container.Set with type 'a t := 'a t and type 'a key := 'a
 
+(** {1:type-specialisations Type specialisations} *)
+
 module Immediate : sig
+  (** An hashset of elements with an {i immediate} runtime representation (such
+      that [Obj.is_int] always holds). Attempting to store non-immediate values
+      in this hashset will raise an exception.
+
+      See {{!implementation} below} for an explanation of the implementation. *)
+
   include Hashed_container.Set with type 'a key := 'a
   (** @inline *)
 
   val create : initial_capacity:int -> (module Key with type t = 'a) -> 'a t
+
+  (** {1:implementation Implementation details}
+
+      Restricting the elements to always be immediates allows a more efficient
+      implementation of the hashset in which buckets of size 1 can be stored
+      directly in the parent array (rather than allocating a separate heap block
+      for the singleton bucket, as done by the standard implementation). Buckets
+      with more than a single element still use separate chaining, with an
+      overhead of two words.
+
+      For example, consider the following hashset of the characters
+      ['a' ... 'd']:
+
+      {v
+          ┌─────┐
+          │ hdr │
+          ├─────┤
+          │ { } │
+          ├─────┤
+          │ 'a' │
+          ├─────┤    ┌─────┬─────┬─────┐
+          │  ┄┄┄┼┄┄┄>│ hdr │ 'c' │ 'b' │
+          ├─────┤    └─────┴─────┴─────┘
+          │ 'd' │
+          ├─────┤
+          │ { } │
+          └─────┘
+      v}
+
+      For typical load factors, inlining singleton buckets into the parent array
+      is a considerable memory reduction (~20%), and avoids some unnecessary
+      allocations. *)
 end
 
 module Fixed_size_string = Hashset_fixed_size_string
