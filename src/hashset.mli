@@ -23,6 +23,11 @@ val create : initial_capacity:int -> (module Key with type t = 'a) -> 'a t
 (** @inline *)
 include Hashed_container.Set with type 'a t := 'a t and type 'a key := 'a
 
+module Internal :
+  Internal.S1
+    with type 'a outer_t := 'a t
+     and type 'a t = ('a, unit, 'a, unit, 'a) Hashed_container.t
+
 (** {1:type-specialisations Type specialisations} *)
 
 module Immediate : sig
@@ -70,12 +75,17 @@ module Immediate : sig
       allocations. *)
 end
 
-module Fixed_size_string = Hashset_fixed_size_string
+(** [Immediate64] is like [Immediate] but for types that are only guaranteed to
+    have an immediate representation when [Sys.word_size = 64], such as
+    [Int63.t]. *)
+module Immediate64 : sig
+  include Hashed_container.Set with type 'a key := 'a
+  (** @inline *)
 
-module Internal :
-  Internal.S1
-    with type 'a outer_t := 'a t
-     and type 'a t = ('a, unit, 'a, unit, 'a) Hashed_container.t
+  val create : initial_capacity:int -> (module Key with type t = 'a) -> 'a t
+end
+
+module Fixed_size_string = Hashset_fixed_size_string
 
 (*————————————————————————————————————————————————————————————————————————————
    Copyright (c) 2020–2021 Craig Ferguson <me@craigfe.io>

@@ -12,14 +12,14 @@ Currently provides the following modules:
   array optimisation][flat-float-array]. Comes with `Tuple2` and `Tuple3`
   specialisations for compact arrays of _pairs_ and _triples_.
 
-- **`Hashset`**: an unordered set container. Comes with two specialisations:
-  - `Immediate`, for hashsets of values with an immediate runtime representation
+- **`Hashset`**: an unordered set container. Comes with three specialisations:
+  - `Immediate`, for elements with an immediate representation
     (e.g. `int`).
-  - `Fixed_size_string`, for hashsets of strings of a fixed length.
+  - `Immediate64`, for elements with an immediate 
+    representation on 64-bit platforms only (e.g. `Int63.t`).
+  - `Fixed_size_string`, for elements that are strings of a fixed length.
 
 - **`Hashtbl`**: an unordered associative container.
-
-- **`String_set`**: an efficient hashset of fixed-size strings.
 
 - **`Hashed_container`**: a generic hashtable implementation with support for
   externally-allocated bindings.

@@ -18,7 +18,8 @@ module type Key = sig
   val hash_size : int
 end
 
-let create ~initial_capacity (type a) (module Key : Key with type t = a) : a t =
+let create_generic (type a) ~(entry_size : (a, _) Hashed_container.Entry_size.t)
+    ~initial_capacity (module Key : Key with type t = a) : a t =
   let module Key = struct
     include Key
 
@@ -42,7 +43,10 @@ let create ~initial_capacity (type a) (module Key : Key with type t = a) : a t =
   Hashed_container.create ~initial_capacity
     ~key:(module Key)
     ~entry:(module Entry)
-    ~entry_size:Hashed_container.Entry_size.Value1 ()
+    ~entry_size ()
+
+let create (type a) ~initial_capacity (module Key : Key with type t = a) : a t =
+  create_generic ~entry_size:Value1 ~initial_capacity (module Key)
 
 module Immediate = struct
   include Hashed_container.No_decoder
@@ -50,33 +54,30 @@ module Immediate = struct
   type nonrec 'a t = ('a, unit, 'a, 'a) t
 
   let add t k = replace t k k
+  let entry_size = Hashed_container.Entry_size.Immediate
 
-  let create ~initial_capacity (type a) (module Key : Key with type t = a) : a t
+  let create (type a) ~initial_capacity (module Key : Key with type t = a) : a t
       =
-    let module Key = struct
-      include Key
+    create_generic ~entry_size ~initial_capacity (module Key)
+end
 
-      type packed = Key.t
-      type decoder = unit
+module Immediate64 = struct
+  include Hashed_container.No_decoder
 
-      let unpack () t = t
-    end in
-    let module Entry = struct
-      type t = Key.t
-      type key = Key.t
-      type packed = Key.t
-      type value = unit
-      type decoder = unit
+  type nonrec 'a t = ('a, unit, 'a, 'a) t
 
-      let key t = t
-      let value (_ : t) = ()
-      let unpack () t = t
-      let compare = Stdlib.compare (* XXX: polymorphic comparison *)
-    end in
-    Hashed_container.create ~initial_capacity
-      ~key:(module Key)
-      ~entry:(module Entry)
-      ~entry_size:Hashed_container.Entry_size.Immediate ()
+  let add t k = replace t k k
+
+  type _ boxed_entry_size =
+    | E : ('a, _) Hashed_container.Entry_size.t -> 'a boxed_entry_size
+  [@@unboxed]
+
+  let entry_size = if Sys.word_size = 64 then E Immediate else E Value1
+
+  let create (type a) ~initial_capacity (module Key : Key with type t = a) : a t
+      =
+    let (E entry_size) = entry_size in
+    create_generic ~entry_size ~initial_capacity (module Key)
 end
 
 module Fixed_size_string = Hashset_fixed_size_string
