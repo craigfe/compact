@@ -8,6 +8,7 @@
 
 open! Import
 include Hashed_container_intf
+include Hashed_container_intf.Types
 module Bucket = Hashed_container_bucket
 module Entry_size = Bucket.Entry_size
 

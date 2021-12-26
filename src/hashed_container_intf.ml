@@ -160,6 +160,26 @@ module type Assoc = sig
         ('a, 'b, 'c, 'd) with_internal_entry
 end
 
+module Types = struct
+  module type Of_packed = Of_packed
+  module type Key = Key
+  module type Entry = Entry
+
+  type ('key, 'decoder, 'kv_packed) key_impl =
+    (module Key
+       with type t = 'key
+        and type decoder = 'decoder
+        and type packed = 'kv_packed)
+
+  type ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl =
+    (module Entry
+       with type t = 'kv_pair
+        and type key = 'key
+        and type value = 'value
+        and type decoder = 'decoder
+        and type packed = 'kv_packed)
+end
+
 module type Intf = sig
   module type S = S
   module type Set = Set
@@ -190,9 +210,7 @@ module type Intf = sig
 
   (** {2 Construction} *)
 
-  module type Of_packed = Of_packed
-  module type Key = Key
-  module type Entry = Entry
+  include module type of Types
 
   module Entry_size : sig
     type 'a immediate
@@ -208,18 +226,8 @@ module type Intf = sig
   end
 
   val create :
-       key:
-         (module Key
-            with type t = 'key
-             and type decoder = 'decoder
-             and type packed = 'kv_packed)
-    -> entry:
-         (module Entry
-            with type t = 'kv_pair
-             and type key = 'key
-             and type value = 'value
-             and type decoder = 'decoder
-             and type packed = 'kv_packed)
+       key:('key, 'decoder, 'kv_packed) key_impl
+    -> entry:('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl
     -> initial_capacity:int
     -> entry_size:('kv_packed, _) Entry_size.t
     -> unit
