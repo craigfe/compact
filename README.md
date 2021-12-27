@@ -2,8 +2,6 @@
 <h4 align="center">Memory-efficient data structures for OCaml</h4>
 <br>
 
-Generic containers with small memory footprints.
-
 Currently provides the following modules:
 
 - **`Arena`**: an arena for fixed-width strings;
@@ -23,7 +21,10 @@ Currently provides the following modules:
 
 - **`Hashed_container`**: a generic hashtable implementation with support for
   externally-allocated bindings.
-  
+
+See the [`./bench` subdirectory](./bench/) for benchmarks (and benchmark
+results) for the above modules.
+
 [flat-float-array]: https://dev.realworldocaml.org/runtime-memory-layout.html#scrollNav-3-1
 
 ### Installation
@@ -37,4 +38,8 @@ opam install compact
 
 ### Acknowledgements
 
-This library pulls code and ideas from various open-source Jane Street libraries.
+This library pulls code and ideas from various open-source Jane Street
+libraries, including a [uniform array][base-uniform-array] implementation from
+`Base`.
+
+[base-uniform-array]: https://github.com/janestreet/base/blob/caae3c2bacebd558ae2b0bbea807ec9703fb7508/src/uniform_array.ml

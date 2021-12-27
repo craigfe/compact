@@ -35,6 +35,8 @@ module Immediate : sig
       that [Obj.is_int] always holds). Attempting to store non-immediate values
       in this hashset will raise an exception.
 
+      For [int] elements, one can use {!Int} directly.
+
       See {{!implementation} below} for an explanation of the implementation. *)
 
   include Hashed_container.Set with type 'a key := 'a
@@ -83,6 +85,14 @@ module Immediate64 : sig
   (** @inline *)
 
   val create : initial_capacity:int -> (module Key with type t = 'a) -> 'a t
+end
+
+module Int : sig
+  type t = int Immediate.t
+
+  include Hashed_container.Set with type _ t := t and type _ key := int
+
+  val create : initial_capacity:int -> unit -> t
 end
 
 module Fixed_size_string = Hashset_fixed_size_string

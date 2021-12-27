@@ -71,6 +71,23 @@ module Immediate = struct
     create_generic ~entry_size ~initial_capacity (module Key)
 end
 
+module Int = struct
+  include Immediate
+
+  type nonrec t = int t
+
+  module Key = struct
+    include Stdlib.Int
+
+    let hash = Stdlib.Hashtbl.hash
+    let hash_size = 30
+  end
+
+  let create ~initial_capacity () : t =
+    create_generic ~entry_size:Immediate.entry_size ~initial_capacity
+      (module Key)
+end
+
 module Immediate64 = struct
   include Hashed_container.No_decoder
 

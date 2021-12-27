@@ -69,7 +69,7 @@ module type S = sig
   type ('inner, 'd) with_decoder
 
   val remove : ('k, _, _, 'd, _) t -> ('k key -> unit, 'd) with_decoder
-  val mem : ('k, _, _, 'd, _) t -> ('k -> bool, 'd) with_decoder
+  val mem : ('k, _, _, 'd, _) t -> ('k key -> bool, 'd) with_decoder
 
   val cardinal : (_, _, _, _, _) t -> int
   (** [cardinal t] is the number of bindings in [t]. *)
@@ -142,8 +142,8 @@ module type Set = sig
   type 'a key
 
   val add : 'a t -> 'a key -> unit
-  val map : 'a t -> f:('a -> 'a) -> 'a t
-  val map_inplace : 'a t -> f:('a -> 'a) -> unit
+  val map : 'a t -> f:('a key -> 'a key) -> 'a t
+  val map_inplace : 'a t -> f:('a key -> 'a key) -> unit
 
   (** @inline *)
   include

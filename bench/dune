@@ -1,12 +1,4 @@
 (executable
  (name main)
- (libraries
-  mtime
-  mtime.clock.os
-  base
-  compact
-  containers-data
-  hashset
-  memtrace
-  sexplib0)
+ (libraries mtime mtime.clock.os base compact hashset memtrace sexplib0)
  (ocamlopt_flags -O3))

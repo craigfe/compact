@@ -74,12 +74,12 @@ module Hashset = struct
   end
 
   module Hs_compact_imm : S = struct
-    module T = Compact.Hashset.Immediate
+    module T = Compact.Hashset.Int
 
-    type t = int T.t
+    type t = T.t
 
     let name = "compact-immediate"
-    let create n = T.create ~initial_capacity:n (module Key)
+    let create n = T.create ~initial_capacity:n ()
     let add = T.add
   end
 
@@ -123,14 +123,6 @@ module Hashset = struct
     let add t k = T.add t k ()
   end
 
-  module Hs_containers : S = struct
-    let name = "containers"
-
-    include CCHashSet.Make (Key)
-
-    let add t k = insert t k
-  end
-
   let run_loop ~out (module Hashset : S) =
     let t = Hashset.create 0 in
     run_loop t ~iterations:300_000 ~name:Hashset.name ~out ~action:(fun t ->
@@ -142,7 +134,6 @@ module Hashset = struct
       [ (module Hs_stdlib)
       ; (module Hs_backtracking)
       ; (module Hs_base)
-      ; (module Hs_containers)
       ; (module Hs_compact_imm)
       ; (module Hs_compact)
       ];
