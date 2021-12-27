@@ -7,5 +7,6 @@
   compact
   containers-data
   hashset
-  memtrace)
+  memtrace
+  sexplib0)
  (ocamlopt_flags -O3))
