@@ -67,4 +67,5 @@ let () =
     ; ("Hashed_container", Test_hashed_container.tests)
     ; ("Hashtbl", Test_hashtbl.tests)
     ; ("Immediate_array", Test_immediate_array.tests)
+    ; ("Uniform_array", Test_uniform_array.tests)
     ]
