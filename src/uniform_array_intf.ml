@@ -9,7 +9,6 @@ module type S = sig
   type ('a, 'b, 'c) elt
   type ('a, 'b, 'c, 'inner) with_elt
 
-  val invariant : (_, _, _) t -> unit
   val empty : (_, _, _) t
   val create : len:int -> ('a, 'b, 'c, ('a, 'b, 'c) t) with_elt
   val singleton : ('a, 'b, 'c, ('a, 'b, 'c) t) with_elt
@@ -114,6 +113,8 @@ module type Intf = sig
   val unsafe_set_int_assuming_currently_int : Obj.t t -> int -> int -> unit
   val unsafe_set_int : Obj.t t -> int -> int -> unit
 
+  include Invariant.S1 with type 'a t := 'a t
+
   (** {2 Arrays of tuples}
 
       Compact uniform arrays of tuples: e.g. an [('a, 'b) Tuple2.t] is
@@ -144,6 +145,7 @@ module type Intf = sig
     val unsafe_get_snd : (_, 'b) t -> int -> 'b
     val unsafe_set_fst : ('a, _) t -> int -> 'a -> unit
     val unsafe_set_snd : (_, 'b) t -> int -> 'b -> unit
+    val invariant : ('a * 'b) Invariant.t -> ('a, 'b) t Invariant.t
   end
 
   module Tuple3 : sig
@@ -168,6 +170,7 @@ module type Intf = sig
     val unsafe_set_fst : ('a, _, _) t -> int -> 'a -> unit
     val unsafe_set_snd : (_, 'b, _) t -> int -> 'b -> unit
     val unsafe_set_thd : (_, _, 'c) t -> int -> 'c -> unit
+    val invariant : ('a * 'b * 'c) Invariant.t -> ('a, 'b, 'c) t Invariant.t
   end
 end
 

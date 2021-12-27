@@ -368,7 +368,14 @@ let of_list_rev : type a b. (a, b) Entry_size.t -> a list -> b =
   | Value2 -> L2.of_list_rev t
   | Value3 -> L3.of_list_rev t
 
-let invariant _ _ = ()
+let invariant : type a b. (a, b) Entry_size.t -> a Invariant.t -> b Invariant.t
+    =
+ fun entry_size inv_elt t ->
+  match entry_size with
+  | Immediate -> I1.invariant inv_elt t
+  | Value1 -> L1.invariant inv_elt t
+  | Value2 -> L2.invariant inv_elt t
+  | Value3 -> L3.invariant inv_elt t
 
 (*————————————————————————————————————————————————————————————————————————————
    Copyright (c) 2020–2021 Craig Ferguson <me@craigfe.io>

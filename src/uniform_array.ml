@@ -94,8 +94,6 @@ end
 
 include Trusted
 
-let invariant t = assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag)
-
 let init l ~f =
   if l < 0 then invalid_arg "Uniform_array.init"
   else
@@ -122,6 +120,10 @@ let iteri a ~f =
   for i = 0 to length a - 1 do
     f i (unsafe_get a i)
   done
+
+let invariant inv_a t =
+  assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag);
+  iter t ~f:inv_a
 
 let to_list t = List.init ~f:(get t) ~len:(length t)
 
@@ -275,8 +277,6 @@ module Tuple2 = struct
 
   include Trusted
 
-  let invariant t = assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag)
-
   let init l ~f =
     if l < 0 then invalid_arg "Uniform_array.init"
     else
@@ -307,6 +307,10 @@ module Tuple2 = struct
     for i = 0 to length a - 1 do
       f i (unsafe_get_fst a i) (unsafe_get_snd a i)
     done
+
+  let invariant inv_elt t =
+    assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag);
+    iter t ~f:(fun a b -> inv_elt (a, b))
 
   let to_list t = List.init ~f:(get t) ~len:(length t)
 
@@ -493,8 +497,6 @@ module Tuple3 = struct
 
   include Trusted
 
-  let invariant t = assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag)
-
   let init l ~f =
     if l < 0 then invalid_arg "Uniform_array.init"
     else
@@ -530,6 +532,10 @@ module Tuple3 = struct
     for i = 0 to length a - 1 do
       f i (unsafe_get_fst a i) (unsafe_get_snd a i) (unsafe_get_thd a i)
     done
+
+  let invariant inv_elt t =
+    assert (Obj.tag (Obj.repr t) <> Obj.double_array_tag);
+    iter t ~f:(fun a b c -> inv_elt (a, b, c))
 
   let to_list t = List.init ~f:(get t) ~len:(length t)
 

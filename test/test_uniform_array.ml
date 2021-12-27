@@ -37,7 +37,7 @@ let test_singleton () =
 
   let f = 13. in
   let t = singleton (Obj.repr f) in
-  invariant t;
+  invariant ignore t;
   assert (Obj.repr f = get t 0)
 
 (* [get], [unsafe_get], [set], [unsafe_set], [unsafe_set_assuming_currently_int] *)

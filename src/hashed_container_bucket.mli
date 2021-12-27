@@ -60,7 +60,7 @@ val replace :
   -> data:'a
   -> 'b
 
-val invariant : ('a, 'b) Entry_size.t -> 'b -> unit
+val invariant : ('a, 'b) Entry_size.t -> 'a Invariant.t -> 'b Invariant.t
 
 (*————————————————————————————————————————————————————————————————————————————
    Copyright (c) 2020–2021 Craig Ferguson <me@craigfe.io>

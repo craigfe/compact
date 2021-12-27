@@ -361,14 +361,14 @@ module T = struct
    fun ~decoder invariant_key invariant_data (T t) ->
     let (module Entry) = t.entry_impl in
     for i = 0 to Array.length t.hashtbl - 1 do
-      Bucket.invariant t.entry_size t.hashtbl.(i)
-    done;
-    let real_length =
-      fold ~decoder (T t) ~init:0 ~f:(fun i entry ->
+      Bucket.invariant t.entry_size
+        (fun packed ->
+          let entry = Entry.unpack decoder packed in
           invariant_key (Entry.key entry);
-          invariant_data (Entry.value entry);
-          i + 1)
-    in
+          invariant_data (Entry.value entry))
+        t.hashtbl.(i)
+    done;
+    let real_length = fold ~decoder (T t) ~init:0 ~f:(fun i _ -> i + 1) in
     assert (t.cardinal = real_length)
 end
 
