@@ -41,7 +41,7 @@ let run_loop ~name ~out ~iterations ~action t =
         (Int64.div (Mtime.Span.to_uint64_ns diff) 1_000L);
       last := Mtime_clock.count start_time)
   done;
-  Printf.eprintf "\r%s : done\n%!" name
+  Printf.eprintf "\r%s : done\x1b[K\n%!" name
 
 let open_stat_file name =
   let stat_file =
@@ -65,36 +65,87 @@ module Hashset = struct
 
       Stats are emitted to a trace file to be interpreted by [analysis/main.py]. *)
 
-  module Hs_compact_imm = Compact.Hashset.Immediate
-  module Hs_compact = Compact.Hashset.Immediate
-  module Hs_backtracking = Hashset
-  module Hs_base = Base.Hash_set
-  module Hs_stdlib = Stdlib.Hashtbl
+  module type S = sig
+    type t
 
-  module Hs_containers = struct
+    val name : string
+    val create : int -> t
+    val add : t -> int -> unit
+  end
+
+  module Hs_compact_imm : S = struct
+    module T = Compact.Hashset.Immediate
+
+    type t = int T.t
+
+    let name = "compact-immediate"
+    let create n = T.create ~initial_capacity:n (module Key)
+    let add = T.add
+  end
+
+  module Hs_compact : S = struct
+    module T = Compact.Hashset
+
+    type t = int T.t
+
+    let name = "compact"
+    let create n = T.create ~initial_capacity:n (module Key)
+    let add = T.add
+  end
+
+  module Hs_backtracking : S = struct
+    module T = Hashset
+
+    type nonrec t = int Hashset.t
+
+    let name = "backtracking"
+    let create = T.create
+    let add = T.add
+  end
+
+  module Hs_base : S = struct
+    module T = Base.Hash_set
+
+    type t = int T.t
+
+    let name = "base"
+    let create n = T.create ~size:n (module Key)
+    let add = T.add
+  end
+
+  module Hs_stdlib : S = struct
+    module T = Stdlib.Hashtbl
+
+    type nonrec t = (int, unit) T.t
+
+    let name = "stdlib"
+    let create n = T.create n
+    let add t k = T.add t k ()
+  end
+
+  module Hs_containers : S = struct
+    let name = "containers"
+
     include CCHashSet.Make (Key)
 
     let add t k = insert t k
   end
 
-  let run_loop ~name ~out ~add t =
-    run_loop t ~iterations:300_000 ~name ~out ~action:(fun t ->
-        add t (random_int ()))
+  let run_loop ~out (module Hashset : S) =
+    let t = Hashset.create 0 in
+    run_loop t ~iterations:300_000 ~name:Hashset.name ~out ~action:(fun t ->
+        Hashset.add t (random_int ()))
 
   let run () =
     let out = open_stat_file "hashset-memory-usage" in
-    run_loop ~name:"stdlib" ~out
-      ~add:(fun t k -> Hs_stdlib.add t k ())
-      (Hs_stdlib.create 0);
-    run_loop ~name:"backtracking" ~out ~add:Hs_backtracking.add
-      (Hs_backtracking.create 0);
-    run_loop ~name:"base" ~out ~add:Hs_base.add (Hs_base.create (module Key));
-    run_loop ~name:"containers" ~out ~add:Hs_containers.add
-      (Hs_containers.create 0);
-    run_loop ~name:"compact-immediate" ~out ~add:Hs_compact_imm.add
-      (Hs_compact_imm.create ~initial_capacity:0 (module Key));
-    run_loop ~name:"compact" ~out ~add:Hs_compact.add
-      (Hs_compact.create ~initial_capacity:0 (module Key));
+    List.iter (run_loop ~out)
+      [ (module Hs_stdlib)
+      ; (module Hs_backtracking)
+      ; (module Hs_base)
+      ; (module Hs_containers)
+      ; (module Hs_compact_imm)
+      ; (module Hs_compact)
+      ];
     Printf.printf "\nDone\n"
 end
 
@@ -130,4 +181,10 @@ end
  *   done;
  *   Printf.eprintf "done\n%!" *)
 
-let () = Hashtbl.run ()
+let () =
+  match Sys.argv with
+  | [| _; "hashtbl" |] -> Hashtbl.run ()
+  | [| _; "hashset" |] -> Hashset.run ()
+  | _ ->
+      Printf.eprintf "usage: %s [hashtbl | hashset]\n%!" Sys.argv.(0);
+      exit 1

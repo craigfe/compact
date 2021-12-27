@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 df = pd.read_csv(sys.argv[1])
+figure_file = sys.argv[2]
 
 # Categorise the entries by implementation
 # implementations=['stdlib','base','containers','backtracking','compact','compact-immediate']
@@ -22,9 +23,8 @@ ax1.grid(which ='major', color='gray', linewidth=0.2)
 ax2.grid(which ='major', color='gray', linewidth=0.2)
 ax3.grid(which ='minor', color='gray', linewidth=0.2)
 
-fig.suptitle('Relative performance of hashset implementations')
+fig.suptitle('Relative performance of implementations')
 fig.tight_layout()
 
-figure_file = 'hashset_memory_usage.png'
 print('Saving to \'%s\'' % figure_file)
 fig.savefig(figure_file)
