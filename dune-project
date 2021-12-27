@@ -15,6 +15,7 @@
  (documentation https://CraigFe.github.io/compact/)
  (depends
   (ocaml (>= 4.08.0))
+  (bisect_ppx :dev)
   (fmt :with-test)
   (alcotest (and :with-test (>= 1.4.0)))))
 

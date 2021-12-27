@@ -11,6 +11,7 @@ bug-reports: "https://github.com/CraigFe/compact/issues"
 depends: [
   "dune" {>= "2.9"}
   "ocaml" {>= "4.08.0"}
+  "bisect_ppx" {dev}
   "fmt" {with-test}
   "alcotest" {with-test & >= "1.4.0"}
   "odoc" {with-doc}

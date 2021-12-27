@@ -1,3 +1,5 @@
 (library
  (public_name compact)
- (libraries bigstringaf))
+ (libraries bigstringaf)
+ (instrumentation
+  (backend bisect_ppx)))

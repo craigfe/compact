@@ -1,3 +1,5 @@
 _build
+_coverage
+_fuzz
 _opam
 .#*
