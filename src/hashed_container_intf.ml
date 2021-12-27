@@ -3,38 +3,6 @@
    Distributed under the MIT license. See terms at the end of this file.
   ————————————————————————————————————————————————————————————————————————————*)
 
-module type Of_packed = sig
-  type t
-  type packed
-  type decoder
-
-  val unpack : decoder -> packed -> t
-end
-
-module type Key = sig
-  type t
-
-  val hash : t -> int
-  val hash_size : int
-  val equal : t -> t -> bool
-
-  include Of_packed with type t := t
-end
-
-module type Entry = sig
-  type t
-  type key
-  type value
-
-  val key : t -> key
-  val value : t -> value
-  val compare : t -> t -> int
-
-  include Of_packed with type t := t
-
-  val pack : decoder -> t -> packed
-end
-
 module type S = sig
   type ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) t
   (** The type of hashtables with externally-stored bindings. The type
@@ -210,32 +178,26 @@ module type Assoc = sig
     with_decoder
 end
 
-module Types = struct
-  module type Of_packed = Of_packed
-  module type Key = Key
-  module type Entry = Entry
-
-  type ('key, 'decoder, 'kv_packed) key_impl =
-    (module Key
-       with type t = 'key
-        and type decoder = 'decoder
-        and type packed = 'kv_packed)
-
-  type ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl =
-    (module Entry
-       with type t = 'kv_pair
-        and type key = 'key
-        and type value = 'value
-        and type decoder = 'decoder
-        and type packed = 'kv_packed)
+module type Types = sig
+  type ('key, 'value, 'packed, 'decoder, 'entry) vtable =
+    { key_hash : 'key -> int
+    ; key_hash_size : int
+    ; key_equal : 'key -> 'key -> bool
+    ; entry_key : 'entry -> 'key
+    ; entry_value : 'entry -> 'value
+    ; entry_compare : 'entry -> 'entry -> int
+    ; packed_key : 'decoder -> 'packed -> 'key
+    ; packed_entry : 'decoder -> 'packed -> 'entry
+    ; packed_of_entry : 'decoder -> 'entry -> 'packed
+    }
 end
+
+module rec Types : Types = Types
 
 module type Intf = sig
   module type S = S
   module type Set = Set
   module type Assoc = Assoc
-
-  include module type of Types
 
   include
     Assoc
@@ -245,6 +207,8 @@ module type Intf = sig
        and type (_, _, 'entry) external_entry := 'entry
        and type ('inner, _, _, 'entry) with_external_entry := 'entry -> 'inner
        and type ('inner, 'd) with_decoder := decoder:'d -> 'inner
+
+  include Types
 
   val map :
        ('k, 'v, 'kv_p, 'd, 'e) t
@@ -260,10 +224,11 @@ module type Intf = sig
     -> f:('e -> 'e)
     -> unit
 
+  val vtable : ('a, 'b, 'c, 'd, 'e) t -> ('a, 'b, 'c, 'd, 'e) vtable
+
   val map_poly :
        ('k, 'v1, 'kv_p1, 'd1, 'e1) t
-    -> key_impl:('k, 'd2, 'kv_p2) key_impl
-    -> entry_impl:('k, 'v2, 'kv_p2, 'd2, 'e2) entry_impl
+    -> vtable:('k, 'v2, 'kv_p2, 'd2, 'e2) vtable
     -> decoder_src:'d1
     -> decoder_dst:'d2
     -> f:('e1 -> 'e2)
@@ -287,8 +252,7 @@ module type Intf = sig
 
     val map_poly :
          ('k, 'v1, 'kv_p1, 'e1) t
-      -> key_impl:('k, unit, 'kv_p2) key_impl
-      -> entry_impl:('k, 'v2, 'kv_p2, unit, 'e2) entry_impl
+      -> vtable:('k, 'v2, 'kv_p2, unit, 'e2) vtable
       -> f:('e1 -> 'e2)
       -> ('k, 'v2, 'kv_p2, 'e2) t
   end
@@ -309,20 +273,11 @@ module type Intf = sig
   end
 
   val create :
-       key:('key, 'decoder, 'kv_packed) key_impl
-    -> entry:('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl
+       vtable:('key, 'value, 'kv_packed, 'decoder, 'kv_pair) vtable
     -> initial_capacity:int
     -> entry_size:('kv_packed, _) Entry_size.t
     -> unit
     -> ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) t
-
-  val key_impl :
-       ('key, _, 'kv_packed, 'decoder, _) t
-    -> ('key, 'decoder, 'kv_packed) key_impl
-
-  val entry_impl :
-       ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) t
-    -> ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl
 end
 
 (*————————————————————————————————————————————————————————————————————————————
