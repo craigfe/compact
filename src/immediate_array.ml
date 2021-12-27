@@ -2,6 +2,14 @@ open! Import
 
 type 'a t = ('a, 'a array) Obj_either.t
 
+let invariant invariant_elt t =
+  match Obj_either.inspect t with
+  | Immediate -> invariant_elt (Obj_either.get_immediate_exn t)
+  | Value ->
+      let arr = Obj_either.get_value_exn t in
+      assert (Array.length arr <> 1);
+      Array.iter ~f:invariant_elt arr
+
 let to_array t =
   match Obj_either.inspect t with
   | Immediate -> [| Obj_either.get_immediate_exn t |]

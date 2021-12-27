@@ -66,4 +66,5 @@ let () =
     ; ("Arena", Test_arena.tests)
     ; ("Hashed_container", Test_hashed_container.tests)
     ; ("Hashtbl", Test_hashtbl.tests)
+    ; ("Immediate_array", Test_immediate_array.tests)
     ]

@@ -30,3 +30,5 @@ val unsafe_blit :
 
 val unsafe_set : 'a t -> int -> 'a -> 'a t
 val unsafe_get : 'a t -> int -> 'a
+
+include Invariant.S1 with type 'a t := 'a t
