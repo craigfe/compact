@@ -1,14 +1,14 @@
+<center>
 <h1 align="center">Compact</h1>
 <h4 align="center">Memory-efficient data structures for OCaml</h4>
+<p align="center">
+  <a href="https://ci.ocamllabs.io/github/CraigFe/compact">
+    <img alt="OCaml-CI Build Status" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2FCraigFe%2Fcompact%2Fmain&logo=ocaml" />
+  </a>
+</p>
 <br>
 
 Currently provides the following modules:
-
-- **`Arena`**: an arena for fixed-width strings;
-
-- **`Uniform_array`**: an array implementation that forbids the [flat float
-  array optimisation][flat-float-array]. Comes with `Tuple2` and `Tuple3`
-  specialisations for compact arrays of _pairs_ and _triples_.
 
 - **`Hashset`**: an unordered set container. Comes with three specialisations:
   - `Immediate`, for elements with an immediate representation
@@ -21,6 +21,13 @@ Currently provides the following modules:
 
 - **`Hashed_container`**: a generic hashtable implementation with support for
   externally-allocated bindings.
+  
+- **`Arena`**: an arena for fixed-width strings;
+
+- **`Uniform_array`**: an array implementation that forbids the [flat float
+  array optimisation][flat-float-array]. Comes with `Tuple2` and `Tuple3`
+  specialisations for compact arrays of _pairs_ and _triples_.
+
 
 See the [`./bench` subdirectory](./bench/) for benchmarks (and benchmark
 results) for the above modules.
