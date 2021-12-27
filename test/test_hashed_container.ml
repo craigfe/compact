@@ -68,8 +68,56 @@ let test_mutation_while_iterating () =
 
   ()
 
+let test_bucket_count () =
+  let module Key = struct
+    type t = int
+
+    let equal = ( = )
+    let compare = Stdlib.compare
+    let hash x = x
+    let hash_size = 30
+  end in
+  let t = Hashset.create (module Key) ~initial_capacity:0 in
+  let check_buckets pos expected =
+    Alcotest.(check ~pos int) "" expected (Hashset.bucket_count t)
+  in
+  let check_load_factor pos expected =
+    Alcotest.(check ~pos (float 0.)) "" expected (Hashset.load_factor t)
+  in
+  let add_elt =
+    let count = ref (-1) in
+    fun () ->
+      incr count;
+      Hashset.add t !count
+  in
+  let initial_buckets = 16 in
+  let max_load_factor = 2 in
+
+  (* Initially the set is empty: *)
+  check_buckets __POS__ initial_buckets;
+  check_load_factor __POS__ 0.;
+
+  (* We fill it up to its initial capacity: *)
+  for _ = 1 to max_load_factor * initial_buckets do
+    add_elt ()
+  done;
+  check_buckets __POS__ initial_buckets;
+  check_load_factor __POS__ (Float.of_int max_load_factor);
+
+  (* We exceed the max load factor, triggering a resize: *)
+  add_elt ();
+  check_buckets __POS__ (2 * initial_buckets);
+  check_load_factor __POS__ (1. +. (1. /. Float.of_int (2 * initial_buckets)));
+
+  (* Clearing sets the number of buckets to 1: *)
+  Hashset.clear t;
+  check_buckets __POS__ 1;
+  check_load_factor __POS__ 0.;
+  ()
+
 let tests =
-  let test name fn = Alcotest.test_case name `Quick fn in
-  [ test "Hashset.Immediate.non_immediate_entry" test_non_immediate_entry
-  ; test "Hashset.mutation_while_iterating" test_mutation_while_iterating
+  let test name fn = Alcotest.test_case ("Hashset." ^ name) `Quick fn in
+  [ test "Immediate.non_immediate_entry" test_non_immediate_entry
+  ; test "mutation_while_iterating" test_mutation_while_iterating
+  ; test "bucket_count" test_bucket_count
   ]
