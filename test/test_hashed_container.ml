@@ -21,17 +21,20 @@ let expect_failure ?(msg = "") pos ~f =
   | _ -> Alcotest.fail ~pos msg
 
 let test_non_immediate_entry () =
-  let msg = "Expected adding a non-immediate value to raise Failure" in
-
   let module T = Hashset.Immediate in
   let t = T.create (module String_key) ~initial_capacity:0 in
-  expect_failure __POS__ ~msg ~f:(fun () ->
-      T.add t "strings are not immediates");
+  expect_failure __POS__ ~f:(fun () -> T.add t "strings are not immediates")
 
+let test_non_immediate64_entry () =
   let module T = Hashset.Immediate64 in
   let t = T.create (module String_key) ~initial_capacity:0 in
-  expect_failure __POS__ ~msg ~f:(fun () ->
-      T.add t "strings are not immediates")
+  let f () = T.add t "strings are not immediates" in
+  match Sys.word_size with
+  | 64 -> expect_failure __POS__ ~f
+  | _ ->
+      (* Adding the string should work, since [Immediate64] isn't attempting to
+         inline singleton arrays: *)
+      f ()
 
 let test_mutation_while_iterating () =
   let t = Hashset.create (module Int_key) ~initial_capacity:1 in
@@ -118,6 +121,7 @@ let test_bucket_count () =
 let tests =
   let test name fn = Alcotest.test_case ("Hashset." ^ name) `Quick fn in
   [ test "Immediate.non_immediate_entry" test_non_immediate_entry
+  ; test "Immediate.non_immediate64_entry" test_non_immediate64_entry
   ; test "mutation_while_iterating" test_mutation_while_iterating
   ; test "bucket_count" test_bucket_count
   ]
