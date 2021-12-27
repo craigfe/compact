@@ -133,9 +133,10 @@ let replace :
     -> unpack:(d -> a -> k)
     -> key:k
     -> key_equal:(k -> k -> bool)
+    -> replace:bool
     -> data:a
     -> b =
- fun entry_size t ~decoder ~unpack ~key ~key_equal ~data ->
+ fun entry_size t ~decoder ~unpack ~key ~key_equal ~replace ~data ->
   match entry_size with
   | Immediate -> (
       let length = I1.length t in
@@ -146,7 +147,7 @@ let replace :
           let x = I1.unsafe_get t 0 in
           let key' = unpack decoder x in
           match key_equal key key' with
-          | true -> I1.singleton data
+          | true -> if replace then I1.singleton data else t
           | false ->
               let res = I1.create ~len:2 x in
               I1.unsafe_set res 0 data)
@@ -157,7 +158,13 @@ let replace :
               let key' = unpack decoder x in
               match key_equal key key' with
               | true ->
-                  let (_ : _ I1.t) = I1.unsafe_set t i data in
+                  (if replace then
+                   let (_ : _ I1.t) = I1.unsafe_set t i data in
+                   (* We can safely ignore the "new" bucket since it'll always
+                      be physically-equal to [t]: setting in an immediate array
+                      only returns a new value when it has length 1 (and that
+                      case is handled above). *)
+                   ());
                   raise_notrace Exit
               | false -> ()
             done;
@@ -168,6 +175,7 @@ let replace :
             in
             t'
           with Exit -> t))
+  (* TODO: unify these cases *)
   | Value1 -> (
       let exception Exit in
       try
@@ -177,7 +185,7 @@ let replace :
           let key' = unpack decoder x in
           match key_equal key key' with
           | true ->
-              L1.unsafe_set t i data;
+              if replace then L1.unsafe_set t i data;
               raise_notrace Exit
           | false -> ()
         done;
@@ -197,7 +205,7 @@ let replace :
           let key' = unpack decoder x in
           match key_equal key key' with
           | true ->
-              L2.unsafe_set t i data1 data2;
+              if replace then L2.unsafe_set t i data1 data2;
               raise_notrace Exit
           | false -> ()
         done;
@@ -207,7 +215,7 @@ let replace :
         L2.unsafe_set t' 0 data1 data2;
         t'
       with Exit -> t)
-  | Value3 -> assert false
+  | Value3 -> (* TODO *) assert false
 
 let cons : type a b. (a, b) Entry_size.t -> a -> b -> b =
  fun entry_size x xs ->
@@ -251,6 +259,34 @@ let exists : type a b. (a, b) Entry_size.t -> f:(a -> bool) -> b -> bool =
   | Value1 -> L1.exists t ~f
   | Value2 -> L2.exists t ~f:(curry2 f)
   | Value3 -> L3.exists t ~f:(curry3 f)
+
+let map :
+    type a1 a2 b1 b2.
+    (a1, b1) Entry_size.t -> (a2, b2) Entry_size.t -> f:(a1 -> a2) -> b1 -> b2 =
+ fun e1 e2 ~f t ->
+  match (e1, e2) with
+  | Immediate, Immediate -> I1.map t ~f
+  | Value1, Value1 -> L1.map t ~f
+  | Value2, Value2 -> L2.map t ~f:(curry2 f)
+  | Value3, Value3 -> L3.map t ~f:(curry3 f)
+  | (Immediate | Value1 | Value2 | Value3), _ ->
+      invalid_arg
+        "Hashed_container_bucket.map: changing bucket implementation during \
+         map is unsupported"
+
+let map_inplace : type a b. (a, b) Entry_size.t -> f:(a -> a) -> b -> b =
+ fun entry_size ~f t ->
+  match entry_size with
+  | Immediate -> I1.map_inplace t ~f
+  | Value1 ->
+      L1.map_inplace t ~f;
+      t
+  | Value2 ->
+      L2.map_inplace t ~f:(curry2 f);
+      t
+  | Value3 ->
+      L3.map_inplace t ~f:(curry3 f);
+      t
 
 let find_map :
     type a b r. (a, b) Entry_size.t -> f:(a -> r option) -> b -> r option =
@@ -331,6 +367,8 @@ let of_list_rev : type a b. (a, b) Entry_size.t -> a list -> b =
   | Value1 -> L1.of_list_rev t
   | Value2 -> L2.of_list_rev t
   | Value3 -> L3.of_list_rev t
+
+let invariant _ _ = ()
 
 (*————————————————————————————————————————————————————————————————————————————
    Copyright (c) 2020–2021 Craig Ferguson <me@craigfe.io>

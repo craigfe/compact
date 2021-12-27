@@ -18,17 +18,25 @@ module type Key = sig
   val hash_size : int
 end
 
-let create_generic (type a) ~(entry_size : (a, _) Hashed_container.Entry_size.t)
-    ~initial_capacity (module Key : Key with type t = a) : a t =
-  let module Key = struct
+let key_impl_of_key :
+    type k.
+    (module Key with type t = k) -> (k, unit, k) Hashed_container.key_impl =
+ fun (module Key) ->
+  (module struct
     include Key
 
     type packed = Key.t
     type decoder = unit
 
     let unpack () t = t
-  end in
-  let module Entry = struct
+  end)
+
+let entry_impl_of_key :
+    type k.
+       (module Key with type t = k)
+    -> (k, unit, k, unit, k) Hashed_container.entry_impl =
+ fun (module Key) ->
+  (module struct
     type t = Key.t
     type key = Key.t
     type packed = Key.t
@@ -37,13 +45,15 @@ let create_generic (type a) ~(entry_size : (a, _) Hashed_container.Entry_size.t)
 
     let key t = t
     let value (_ : t) = ()
+    let pack () t = t
     let unpack () t = t
     let compare = Stdlib.compare (* XXX: polymorphic comparison *)
-  end in
-  Hashed_container.create ~initial_capacity
-    ~key:(module Key)
-    ~entry:(module Entry)
-    ~entry_size ()
+  end)
+
+let create_generic (type a) ~(entry_size : (a, _) Hashed_container.Entry_size.t)
+    ~initial_capacity (key : (module Key with type t = a)) : a t =
+  Hashed_container.create ~initial_capacity ~key:(key_impl_of_key key)
+    ~entry:(entry_impl_of_key key) ~entry_size ()
 
 let create (type a) ~initial_capacity (module Key : Key with type t = a) : a t =
   create_generic ~entry_size:Value1 ~initial_capacity (module Key)

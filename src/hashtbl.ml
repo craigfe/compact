@@ -7,46 +7,86 @@ include Hashed_container.No_decoder
 
 type nonrec ('k, 'v) t = ('k, 'v, 'k * 'v, 'k * 'v) t
 
-let replace t k v = replace t k (k, v)
-let iter t ~f = iter t ~f:(fun (k, v) -> f k v)
-let fold t ~f ~init = fold t ~f:(fun acc (k, v) -> f acc k v) ~init
-let count t ~f = count t ~f:(fun (k, v) -> f k v)
+let replace t ~key ~data = replace t key (key, data)
+let add t ~key ~data = add t key (key, data)
+let add_exn t ~key ~data = add_exn t key (key, data)
+let iter t ~f = iter t ~f:(fun (key, data) -> f ~key ~data)
+let map_inplace t ~f = map_inplace t ~f:(fun (key, data) -> (key, f data))
+let fold t ~f ~init = fold t ~f:(fun acc (key, data) -> f acc ~key ~data) ~init
+let exists t ~f = exists t ~f:(fun (key, data) -> f ~key ~data)
+let for_all t ~f = for_all t ~f:(fun (key, data) -> f ~key ~data)
+let count t ~f = count t ~f:(fun (key, data) -> f ~key ~data)
 
 module type Key = sig
   type t
 
   val equal : t -> t -> bool
-  val compare : t -> t -> int
   val hash : t -> int
   val hash_size : int
 end
 
-let create ~initial_capacity (type key value)
-    (module Key : Key with type t = key) : (key, value) t =
-  let module Key = struct
+let key_impl_of_key :
+    type k v.
+    (module Key with type t = k) -> (k, unit, k * v) Hashed_container.key_impl =
+ fun (module Key) ->
+  (module struct
     include Key
 
-    type packed = Key.t * value
+    type packed = Key.t * v
     type decoder = unit
 
     let unpack () (k, _) = k
-  end in
-  let module Entry = struct
-    type t = Key.t * value
+  end)
+
+let entry_impl_of_key :
+    type k v.
+       (module Key with type t = k)
+    -> (k, v, k * v, unit, k * v) Hashed_container.entry_impl =
+ fun (module Key) ->
+  (module struct
+    type t = Key.t * v
     type key = Key.t
-    type packed = Key.t * value
-    type nonrec value = value
+    type packed = Key.t * v
+    type nonrec value = v
     type decoder = unit
 
     let key (k, _) = k
     let value (_, v) = v
+    let pack () t = t
     let unpack () t = t
     let compare = Stdlib.compare (* XXX: polymorphic comparison *)
-  end in
-  Hashed_container.create ~initial_capacity
-    ~key:(module Key)
-    ~entry:(module Entry)
-    ~entry_size:Hashed_container.Entry_size.Value2 ()
+  end)
+
+let map : type k v1 v2. (k, v1) t -> f:(v1 -> v2) -> (k, v2) t =
+ fun t ~f ->
+  let key = (module (val Hashed_container.key_impl t) : Key with type t = k) in
+  let key_impl : (k, unit, k * v2) Hashed_container.key_impl =
+    key_impl_of_key key
+  in
+  let entry_impl : (k, v2, k * v2, unit, k * v2) Hashed_container.entry_impl =
+    entry_impl_of_key key
+  in
+  map_poly t ~key_impl ~entry_impl ~f:(fun (key, data) -> (key, f data))
+
+let entry_size = Hashed_container.Entry_size.Value2
+
+let create ~initial_capacity (type key value)
+    (key : (module Key with type t = key)) : (key, value) t =
+  Hashed_container.create ~initial_capacity ~key:(key_impl_of_key key)
+    ~entry:(entry_impl_of_key key) ~entry_size ()
+
+let create_poly ~initial_capacity () (type key value) : (key, value) t =
+  let key : (module Key with type t = key) =
+    (module struct
+      type t = key
+
+      let equal = ( = )
+      let hash = Stdlib.Hashtbl.hash
+      let hash_size = 30
+    end)
+  in
+  Hashed_container.create ~initial_capacity ~key:(key_impl_of_key key)
+    ~entry:(entry_impl_of_key key) ~entry_size ()
 
 module Internal = struct
   type nonrec ('a, 'b) t = ('a, 'b) t

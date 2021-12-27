@@ -92,11 +92,11 @@ let test_invalid_length () =
   check_invalid_arg __POS__ (fun () -> Arena.allocate arena "")
 
 let tests =
-  let test name fn = Alcotest.test_case name `Quick fn in
-  [ test "Arena.is_full" test_is_full
-  ; test "Arena.read_write" test_read_write
-  ; test "Arena.expand" test_expand
-  ; test "Arena.elt_equal" test_elt_equal
-  ; test "Arena.smuggled_id" test_smuggled_id
-  ; test "Arena.invalid_length" test_invalid_length
+  let test name fn = Alcotest.test_case ("Arena." ^ name) `Quick fn in
+  [ test "is_full" test_is_full
+  ; test "read_write" test_read_write
+  ; test "expand" test_expand
+  ; test "elt_equal" test_elt_equal
+  ; test "smuggled_id" test_smuggled_id
+  ; test "invalid_length" test_invalid_length
   ]

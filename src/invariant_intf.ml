@@ -26,6 +26,8 @@ module type S3 = sig
 end
 
 module type Intf = sig
+  type 'a t = 'a -> unit
+
   module type S = S
   module type S1 = S1
   module type S2 = S2

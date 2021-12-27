@@ -1,3 +1,9 @@
 (test
  (name test)
- (libraries alcotest compact vector))
+ (libraries alcotest compact compact_test_helpers vector)
+ (modules :standard \ compact_test_helpers))
+
+(library
+ (name compact_test_helpers)
+ (modules compact_test_helpers)
+ (libraries compact))

@@ -31,6 +31,8 @@ module type Entry = sig
   val compare : t -> t -> int
 
   include Of_packed with type t := t
+
+  val pack : decoder -> t -> packed
 end
 
 module type S = sig
@@ -87,9 +89,20 @@ module type S = sig
        , 'd )
        with_decoder
 
+  val for_all :
+       ('k, 'v, _, 'd, 'e) t
+    -> (f:(bool, 'k, 'v, 'e) with_external_entry -> bool, 'd) with_decoder
+
+  val exists :
+       ('k, 'v, _, 'd, 'e) t
+    -> (f:(bool, 'k, 'v, 'e) with_external_entry -> bool, 'd) with_decoder
+
   val count :
        ('k, 'v, _, 'd, 'e) t
     -> (f:(bool, 'k, 'v, 'e) with_external_entry -> int, 'd) with_decoder
+
+  val to_list :
+    ('k, 'v, _, 'd, 'e) t -> (('k, 'v, 'e) external_entry list, 'd) with_decoder
 
   val to_sorted_seq :
        ('k, 'v, _, 'd, 'e) t
@@ -129,6 +142,8 @@ module type Set = sig
   type 'a key
 
   val add : 'a t -> 'a key -> unit
+  val map : 'a t -> f:('a -> 'a) -> 'a t
+  val map_inplace : 'a t -> f:('a -> 'a) -> unit
 
   (** @inline *)
   include
@@ -151,14 +166,36 @@ module type Assoc = sig
     -> ((unit, 'k, 'v, 'kv_p) with_internal_entry, 'd) with_decoder
   (** Adds or replaces an existing binding. *)
 
+  type ok_or_duplicate := [ `Ok | `Duplicate ]
+
+  val add :
+       ('k, 'v, 'kv_p, 'd, _) t
+    -> ((ok_or_duplicate, 'k, 'v, 'kv_p) with_internal_entry, 'd) with_decoder
+
+  val add_exn :
+       ('k, 'v, 'kv_p, 'd, _) t
+    -> ((unit, 'k, 'v, 'kv_p) with_internal_entry, 'd) with_decoder
+
   val find : ('k, 'v, _, 'd, _) t -> ('k -> 'v option, 'd) with_decoder
   (** [find t k] is [Some v] if [k] is bound to [v] in [t], or [None] if no such
       binding exists. *)
+
+  val find_and_call :
+       ('k, 'v, _, 'd, _) t
+    -> (    'k
+         -> if_found:(key:'k -> data:'v -> 'r)
+         -> if_not_found:('k -> 'r)
+         -> 'r
+       , 'd )
+       with_decoder
 
   val find_exn : ('k, 'v, _, 'd, _) t -> ('k -> 'v, 'd) with_decoder
   (** [find_exn t d k] is the value to which [k] is bound in [t], if it exists.
 
       @raise Not_found if there is no binding for [k] in [t]. *)
+
+  val iter_keys :
+    ('k, _, _, 'd, _) t -> (f:('k -> unit) -> unit, 'd) with_decoder
 
   include
     S
@@ -166,6 +203,11 @@ module type Assoc = sig
        and type ('a, 'b) with_decoder := ('a, 'b) with_decoder
        and type ('a, 'b, 'c, 'd) with_internal_entry :=
         ('a, 'b, 'c, 'd) with_internal_entry
+
+  val invariant :
+    ( 'k Invariant.t -> 'v Invariant.t -> ('k, 'v, _, 'd, _) t Invariant.t
+    , 'd )
+    with_decoder
 end
 
 module Types = struct
@@ -193,6 +235,8 @@ module type Intf = sig
   module type Set = Set
   module type Assoc = Assoc
 
+  include module type of Types
+
   include
     Assoc
       with type 'self key := 'self
@@ -201,6 +245,29 @@ module type Intf = sig
        and type (_, _, 'entry) external_entry := 'entry
        and type ('inner, _, _, 'entry) with_external_entry := 'entry -> 'inner
        and type ('inner, 'd) with_decoder := decoder:'d -> 'inner
+
+  val map :
+       ('k, 'v, 'kv_p, 'd, 'e) t
+    -> decoder_src:'d
+    -> decoder_dst:'d
+    -> f:('e -> 'e)
+    -> ('k, 'v, 'kv_p, 'd, 'e) t
+
+  val map_inplace :
+       ('k, 'v, 'kv_p, 'd, 'e) t
+    -> decoder_src:'d
+    -> decoder_dst:'d
+    -> f:('e -> 'e)
+    -> unit
+
+  val map_poly :
+       ('k, 'v1, 'kv_p1, 'd1, 'e1) t
+    -> key_impl:('k, 'd2, 'kv_p2) key_impl
+    -> entry_impl:('k, 'v2, 'kv_p2, 'd2, 'e2) entry_impl
+    -> decoder_src:'d1
+    -> decoder_dst:'d2
+    -> f:('e1 -> 'e2)
+    -> ('k, 'v2, 'kv_p2, 'd2, 'e2) t
 
   module No_decoder : sig
     type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, unit, 'd) t
@@ -214,11 +281,19 @@ module type Intf = sig
          and type (_, _, 'entry) external_entry := 'entry
          and type ('inner, _, _, 'entry) with_external_entry := 'entry -> 'inner
          and type ('inner, _) with_decoder := 'inner
+
+    val map : ('k, 'v, 'kv_p, 'e) t -> f:('e -> 'e) -> ('k, 'v, 'kv_p, 'e) t
+    val map_inplace : ('k, 'v, 'kv_p, 'e) t -> f:('e -> 'e) -> unit
+
+    val map_poly :
+         ('k, 'v1, 'kv_p1, 'e1) t
+      -> key_impl:('k, unit, 'kv_p2) key_impl
+      -> entry_impl:('k, 'v2, 'kv_p2, unit, 'e2) entry_impl
+      -> f:('e1 -> 'e2)
+      -> ('k, 'v2, 'kv_p2, 'e2) t
   end
 
   (** {2 Construction} *)
-
-  include module type of Types
 
   module Entry_size : sig
     type 'a immediate
@@ -240,6 +315,14 @@ module type Intf = sig
     -> entry_size:('kv_packed, _) Entry_size.t
     -> unit
     -> ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) t
+
+  val key_impl :
+       ('key, _, 'kv_packed, 'decoder, _) t
+    -> ('key, 'decoder, 'kv_packed) key_impl
+
+  val entry_impl :
+       ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) t
+    -> ('key, 'value, 'kv_packed, 'decoder, 'kv_pair) entry_impl
 end
 
 (*————————————————————————————————————————————————————————————————————————————

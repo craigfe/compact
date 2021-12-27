@@ -127,24 +127,50 @@ module T = struct
         new_hashtbl.((2 * i) + 1) <- bucket_2i_plus_1);
     t.hashtbl <- new_hashtbl
 
-  (** Replace implementation that only updates in-memory state (and doesn't
-      write the binding to disk). *)
-  let replace : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> c -> unit
-      =
-   fun (T t) ~decoder key offset ->
-    ensure_mutation_allowed ~__FUNCTION__ t;
+  let maybe_resize t ~decoder =
+    let should_grow = t.cardinal > 2 * Array.length t.hashtbl in
+    if should_grow then resize (T t) decoder
+
+  type add_result = Add | Replace
+
+  let add_worker :
+      type a b c d e.
+      (a, b, c, d, e) t -> replace:bool -> decoder:d -> a -> c -> add_result =
+   fun (T t) ~replace ~decoder key offset ->
     let (module Key) = t.key_impl in
     if t.cardinal > 2 * Array.length t.hashtbl then resize (T t) decoder;
     let elt_idx = elt_index (T t) key in
     let bucket = t.hashtbl.(elt_idx) in
     let length = Bucket.length t.entry_size bucket in
-    let bucket =
-      Bucket.replace t.entry_size bucket ~decoder ~unpack:Key.unpack ~key
-        ~key_equal:Key.equal ~data:offset
+    let bucket' =
+      Bucket.replace t.entry_size bucket ~replace ~decoder ~unpack:Key.unpack
+        ~key ~key_equal:Key.equal ~data:offset
     in
-    let length' = Bucket.length t.entry_size bucket in
-    if length' > length then t.cardinal <- t.cardinal + 1;
-    t.hashtbl.(elt_idx) <- bucket
+    let length' = Bucket.length t.entry_size bucket' in
+    (* Avoid [caml_modify] when new bucket is identical: *)
+    if not (bucket == bucket') then t.hashtbl.(elt_idx) <- bucket';
+    if length' > length then (
+      t.cardinal <- t.cardinal + 1;
+      maybe_resize t ~decoder;
+      Add)
+    else Replace
+
+  let replace (T t) ~decoder key offset =
+    ensure_mutation_allowed ~__FUNCTION__ t;
+    let (_ : add_result) = add_worker (T t) ~replace:true ~decoder key offset in
+    ()
+
+  let add (T t) ~decoder key offset =
+    ensure_mutation_allowed ~__FUNCTION__ t;
+    match add_worker (T t) ~replace:false ~decoder key offset with
+    | Add -> `Ok
+    | Replace -> `Duplicate
+
+  let add_exn t ~decoder key offset =
+    match add t ~decoder key offset with
+    | `Ok -> ()
+    | `Duplicate ->
+        Printf.ksprintf failwith "%s: got key already present" __FUNCTION__
 
   let remove : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> unit =
    fun (T t) ~decoder key ->
@@ -154,20 +180,25 @@ module T = struct
     let bucket = t.hashtbl.(elt_idx) in
     let key_found = ref false in
     let bucket' =
-      Bucket.fold_left t.entry_size bucket ~init:[] ~f:(fun acc offset' ->
+      Bucket.fold_left t.entry_size bucket ~init:[] ~f:(fun acc entry ->
           if !key_found then
             (* We ensure there's at most one binding for a given key *)
-            acc
+            entry :: acc
           else
-            let key' = Key.unpack decoder offset' in
+            let key' = Key.unpack decoder entry in
             match Key.equal key key' with
-            | false -> offset' :: acc
-            | true -> (* Drop this binding *) acc)
+            | false -> entry :: acc
+            | true ->
+                (* Drop this binding *)
+                key_found := true;
+                acc)
       |> Bucket.of_list_rev t.entry_size
     in
     match !key_found with
     | false -> (* Nothing to do *) ()
-    | true -> t.hashtbl.(elt_idx) <- bucket'
+    | true ->
+        t.cardinal <- t.cardinal - 1;
+        t.hashtbl.(elt_idx) <- bucket'
 
   let mem : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> bool =
    fun (T t) ~decoder key ->
@@ -177,21 +208,40 @@ module T = struct
     Bucket.exists t.entry_size bucket ~f:(fun offset ->
         Key.equal key (Key.unpack decoder offset))
 
-  let find : type a b c d e. (a, b, c, d, e) t -> decoder:d -> a -> b option =
-   fun (T t) ~decoder key ->
+  let find_and_call :
+      type k v c d e r.
+         (k, v, c, d, e) t
+      -> decoder:d
+      -> k
+      -> if_found:(key:k -> data:v -> r)
+      -> if_not_found:(k -> r)
+      -> r =
+   fun (T t) ~decoder key ~if_found ~if_not_found ->
     let (module Key) = t.key_impl and (module Entry) = t.entry_impl in
     let elt_idx = elt_index (T t) key in
     let bucket = t.hashtbl.(elt_idx) in
-    Bucket.find_map t.entry_size bucket ~f:(fun offset ->
-        (* We expect the keys to match most of the time, so we decode the
-           value at the same time. *)
-        let entry = Entry.unpack decoder offset in
-        match Key.equal key (Entry.key entry) with
-        | false -> None
-        | true -> Some (Entry.value entry))
+    match
+      Bucket.find_map t.entry_size bucket ~f:(fun offset ->
+          (* We expect the keys to match most of the time, so we decode the
+             value at the same time. *)
+          let entry = Entry.unpack decoder offset in
+          match Key.equal key (Entry.key entry) with
+          | false -> None
+          | true -> Some entry)
+    with
+    (* TODO: avoid option allocation here *)
+    | Some entry -> if_found ~key:(Entry.key entry) ~data:(Entry.value entry)
+    | None -> if_not_found key
 
-  let find_exn t ~decoder key =
-    match find t ~decoder key with None -> raise Not_found | Some x -> x
+  let find =
+    let if_found ~key:_ ~data = Some data in
+    let if_not_found _ = None in
+    fun t ~decoder key -> find_and_call t key ~decoder ~if_found ~if_not_found
+
+  let find_exn =
+    let if_found ~key:_ ~data = data in
+    let if_not_found _ = raise Not_found in
+    fun t ~decoder key -> find_and_call t key ~decoder ~if_found ~if_not_found
 
   let fold :
       type a b c d e acc.
@@ -204,6 +254,55 @@ module T = struct
                 let entry = Entry.unpack decoder offset in
                 f acc entry)))
 
+  let map_poly :
+      type a v1 v2 c1 c2 d1 d2 e1 e2.
+         (a, v1, c1, d1, e1) t
+      -> key_impl:(a, d2, c2) key_impl
+      -> entry_impl:(a, v2, c2, d2, e2) entry_impl
+      -> decoder_src:d1
+      -> decoder_dst:d2
+      -> f:(e1 -> e2)
+      -> (a, v2, c2, d2, e2) t =
+   fun (T t) ~key_impl ~entry_impl ~decoder_src ~decoder_dst ~f ->
+    let (module Entry) = t.entry_impl in
+    let (module Entry') = entry_impl in
+    let hashtbl =
+      with_mutation_disallowed t ~f:(fun () ->
+          Array.map t.hashtbl ~f:(fun bucket ->
+              Bucket.map t.entry_size
+                (Obj.magic
+                   t.entry_size (* TODO: use [Higher] typing for entry_size *))
+                bucket ~f:(fun offset ->
+                  let entry = Entry.unpack decoder_src offset in
+                  let entry' = f entry in
+                  Entry'.pack decoder_dst entry')))
+    in
+    T
+      { t with
+        entry_size = Obj.magic t.entry_size
+      ; hashtbl
+      ; key_impl
+      ; entry_impl
+      ; mutation_allowed = true
+      }
+
+  let map (T t) ~decoder_src ~decoder_dst ~f =
+    map_poly (T t) ~key_impl:t.key_impl ~entry_impl:t.entry_impl ~decoder_src
+      ~decoder_dst ~f
+
+  let map_inplace :
+      type a b c d e.
+      (a, b, c, d, e) t -> decoder_src:d -> decoder_dst:d -> f:(e -> e) -> unit
+      =
+   fun (T t) ~decoder_src ~decoder_dst ~f ->
+    let (module Entry) = t.entry_impl in
+    with_mutation_disallowed t ~f:(fun () ->
+        Array.map_inplace t.hashtbl ~f:(fun bucket ->
+            Bucket.map_inplace t.entry_size bucket ~f:(fun offset ->
+                let entry = Entry.unpack decoder_src offset in
+                let entry' = f entry in
+                Entry.pack decoder_dst entry')))
+
   let iter :
       type a b c d e. (a, b, c, d, e) t -> decoder:d -> f:(e -> unit) -> unit =
    fun (T t) ~decoder ~f ->
@@ -213,8 +312,29 @@ module T = struct
             Bucket.iter t.entry_size bucket ~f:(fun offset ->
                 f (Entry.unpack decoder offset))))
 
+  let iter_keys :
+      type a b c d e. (a, b, c, d, e) t -> decoder:d -> f:(a -> unit) -> unit =
+   fun (T t) ~decoder ~f ->
+    let (module Key) = t.key_impl in
+    with_mutation_disallowed t ~f:(fun () ->
+        Array.iter t.hashtbl ~f:(fun bucket ->
+            Bucket.iter t.entry_size bucket ~f:(fun offset ->
+                f (Key.unpack decoder offset))))
+
+  let exists t ~decoder ~f =
+    let exception Exit in
+    match iter t ~decoder ~f:(fun e -> if f e then raise Exit) with
+    | exception Exit -> true
+    | () -> false
+
+  let for_all t ~decoder ~f = not (exists t ~decoder ~f:(fun e -> not (f e)))
+
   let count t ~decoder ~f =
     fold t ~decoder ~init:0 ~f:(fun acc e -> if f e then acc + 1 else acc)
+
+  let to_list t ~decoder =
+    let acc = fold t ~decoder ~init:[] ~f:(fun acc e -> e :: acc) in
+    List.rev acc
 
   let to_sorted_seq : type a b c d e. (a, b, c, d, e) t -> decoder:d -> e Seq.t
       =
@@ -234,9 +354,28 @@ module T = struct
 
   let load_factor (T t) =
     Float.of_int t.cardinal /. Float.of_int (Array.length t.hashtbl)
+
+  let invariant :
+      type a b c d e.
+      decoder:d -> a Invariant.t -> b Invariant.t -> (a, b, c, d, e) t -> unit =
+   fun ~decoder invariant_key invariant_data (T t) ->
+    let (module Entry) = t.entry_impl in
+    for i = 0 to Array.length t.hashtbl - 1 do
+      Bucket.invariant t.entry_size t.hashtbl.(i)
+    done;
+    let real_length =
+      fold ~decoder (T t) ~init:0 ~f:(fun i entry ->
+          invariant_key (Entry.key entry);
+          invariant_data (Entry.value entry);
+          i + 1)
+    in
+    assert (t.cardinal = real_length)
 end
 
 include T
+
+let key_impl (T t) = t.key_impl
+let entry_impl (T t) = t.entry_impl
 
 module No_decoder = struct
   include T
@@ -245,14 +384,25 @@ module No_decoder = struct
 
   let decoder = ()
   let find = find ~decoder
+  let find_and_call = find_and_call ~decoder
   let find_exn = find_exn ~decoder
   let remove = remove ~decoder
   let mem = mem ~decoder
   let iter = iter ~decoder
+  let iter_keys = iter_keys ~decoder
+  let map = map ~decoder_src:decoder ~decoder_dst:decoder
+  let map_poly = map_poly ~decoder_src:decoder ~decoder_dst:decoder
+  let map_inplace = map_inplace ~decoder_src:decoder ~decoder_dst:decoder
   let fold = fold ~decoder
   let count = count ~decoder
+  let exists = exists ~decoder
+  let for_all = for_all ~decoder
+  let to_list = to_list ~decoder
   let to_sorted_seq = to_sorted_seq ~decoder
+  let add = add ~decoder
+  let add_exn = add_exn ~decoder
   let replace = replace ~decoder
+  let invariant k v t = invariant ~decoder k v t
 end
 
 (*————————————————————————————————————————————————————————————————————————————

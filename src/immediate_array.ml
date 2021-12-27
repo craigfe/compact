@@ -38,6 +38,18 @@ let iter t ~f =
   | Immediate -> f (Obj_either.get_immediate_exn t)
   | Value -> Array.iter ~f (Obj_either.get_value_exn t)
 
+let map t ~f =
+  match Obj_either.inspect t with
+  | Immediate -> Obj_either.of_immediate (f (Obj_either.get_immediate_exn t))
+  | Value -> Obj_either.of_value (Array.map ~f (Obj_either.get_value_exn t))
+
+let map_inplace t ~f =
+  match Obj_either.inspect t with
+  | Immediate -> Obj_either.of_immediate (f (Obj_either.get_immediate_exn t))
+  | Value ->
+      Array.map_inplace ~f (Obj_either.get_value_exn t);
+      t
+
 let fold t ~f ~init =
   match Obj_either.inspect t with
   | Immediate -> f init (Obj_either.get_immediate_exn t)

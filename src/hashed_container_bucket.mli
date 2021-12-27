@@ -27,6 +27,14 @@ val exists : ('a, 'b) Entry_size.t -> f:('a -> bool) -> 'b -> bool
 val fold_left :
   ('a, 'b) Entry_size.t -> f:('acc -> 'a -> 'acc) -> init:'acc -> 'b -> 'acc
 
+val map :
+     ('a1, 'b1) Entry_size.t
+  -> ('a2, 'b2) Entry_size.t
+  -> f:('a1 -> 'a2)
+  -> 'b1
+  -> 'b2
+
+val map_inplace : ('a, 'b) Entry_size.t -> f:('a -> 'a) -> 'b -> 'b
 val iter : ('a, 'b) Entry_size.t -> f:('a -> unit) -> 'b -> unit
 val to_array : ('a, 'b) Entry_size.t -> 'b -> 'a array
 val of_list_rev : ('a, 'b) Entry_size.t -> 'a list -> 'b
@@ -48,8 +56,11 @@ val replace :
   -> unpack:('d -> 'a -> 'k)
   -> key:'k
   -> key_equal:('k -> 'k -> bool)
+  -> replace:bool
   -> data:'a
   -> 'b
+
+val invariant : ('a, 'b) Entry_size.t -> 'b -> unit
 
 (*————————————————————————————————————————————————————————————————————————————
    Copyright (c) 2020–2021 Craig Ferguson <me@craigfe.io>

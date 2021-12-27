@@ -17,6 +17,8 @@ val to_list : 'a t -> 'a list
 val of_list : 'a list -> 'a t
 val of_list_rev : 'a list -> 'a t
 val iter : 'a t -> f:('a -> unit) -> unit
+val map : 'a t -> f:('a -> 'b) -> 'b t
+val map_inplace : 'a t -> f:('a -> 'a) -> 'a t
 val fold : 'a t -> f:('acc -> 'a -> 'acc) -> init:'acc -> 'acc
 val exists : 'a t -> f:('a -> bool) -> bool
 val to_array : 'a t -> 'a array

@@ -110,7 +110,8 @@ module Hashtbl = struct
 
   let run () =
     let out = open_stat_file "hashtbl-memory-usage" in
-    run_loop ~name:"compact" ~out ~add:Hs_compact.replace
+    run_loop ~name:"compact" ~out
+      ~add:(fun t key data -> Hs_compact.replace t ~key ~data)
       (Hs_compact.create ~initial_capacity:0 (module Key));
     run_loop ~name:"stdlib" ~out ~add:Hs_stdlib.add (Hs_stdlib.create 0);
     run_loop ~name:"base" ~out

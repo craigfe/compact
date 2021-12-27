@@ -11,20 +11,25 @@ include
     with type ('k, 'v, _, _, _) t := ('k, 'v) t
      and type 'k key := 'k
      and type ('k, 'v, _) external_entry := 'k * 'v
-     and type ('inner, 'k, 'v, _) with_external_entry := 'k -> 'v -> 'inner
-     and type ('inner, 'k, 'v, _) with_internal_entry := 'k -> 'v -> 'inner
+     and type ('inner, 'k, 'v, _) with_external_entry :=
+      key:'k -> data:'v -> 'inner
+     and type ('inner, 'k, 'v, _) with_internal_entry :=
+      key:'k -> data:'v -> 'inner
      and type ('r, _) with_decoder := 'r
+
+val map : ('k, 'v1) t -> f:('v1 -> 'v2) -> ('k, 'v2) t
+val map_inplace : ('k, 'v) t -> f:('v -> 'v) -> unit
 
 module type Key = sig
   type t
 
   val equal : t -> t -> bool
-  val compare : t -> t -> int
   val hash : t -> int
   val hash_size : int
 end
 
 val create : initial_capacity:int -> (module Key with type t = 'k) -> ('k, _) t
+val create_poly : initial_capacity:int -> unit -> (_, _) t
 
 module Internal :
   Internal.S2
