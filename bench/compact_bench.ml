@@ -19,7 +19,15 @@ let stabilize_garbage_collector () =
   in
   go 10 0
 
-let measure_size t = Obj.reachable_words (Obj.repr t)
+let measure_size t =
+  (* NOTE: this measurement relies on _not_ using [--no-naked-pointers] or the
+     OCaml Multicore runtime to get accurate results when using arrays as
+     hashtable buckets, since otherwise [Obj.reachable_words] includes atoms
+     (counting the empty array many times).
+
+     When OCaml 5.0 is released, a custom size measurement function will be
+     needed for hashtables with array buckets. *)
+  Obj.reachable_words (Obj.repr t)
 
 let allocated_words () =
   let s = Gc.quick_stat () in
