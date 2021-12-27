@@ -14,8 +14,10 @@
  (description "Containers with small memory footprints")
  (documentation https://CraigFe.github.io/compact/)
  (depends
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
+  bigstringaf
   (bisect_ppx :dev)
+  (vector :with-test)
   (fmt :with-test)
   (alcotest (and :with-test (>= 1.4.0)))))
 
@@ -24,6 +26,10 @@
  (synopsis "Benchmarks for the `compact` library")
  (description "Benchmarks for the `compact` library")
  (depends
-  (ocaml (>= 4.08.0))
+  (ocaml (>= 4.12.0))
   (compact (= :version))
-  memtrace))
+  base
+  hashset
+  (mtime (>= 1.3.0))
+  memtrace
+  sexplib0))

@@ -1,5 +1,6 @@
 (test
  (name test)
+ (package compact)
  (libraries alcotest compact compact_test_helpers vector fmt)
  (modules :standard \ compact_test_helpers))
 

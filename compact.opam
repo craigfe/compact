@@ -10,8 +10,10 @@ doc: "https://CraigFe.github.io/compact/"
 bug-reports: "https://github.com/CraigFe/compact/issues"
 depends: [
   "dune" {>= "2.9"}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.12.0"}
+  "bigstringaf"
   "bisect_ppx" {dev}
+  "vector" {with-test}
   "fmt" {with-test}
   "alcotest" {with-test & >= "1.4.0"}
   "odoc" {with-doc}

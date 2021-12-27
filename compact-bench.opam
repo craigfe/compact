@@ -9,9 +9,13 @@ homepage: "https://github.com/CraigFe/compact"
 bug-reports: "https://github.com/CraigFe/compact/issues"
 depends: [
   "dune" {>= "2.9"}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.12.0"}
   "compact" {= version}
+  "base"
+  "hashset"
+  "mtime" {>= "1.3.0"}
   "memtrace"
+  "sexplib0"
   "odoc" {with-doc}
 ]
 build: [

@@ -1,4 +1,5 @@
 (executable
- (name main)
+ (public_name compact_bench)
+ (package compact-bench)
  (libraries mtime mtime.clock.os base compact hashset memtrace sexplib0)
  (ocamlopt_flags -O3))

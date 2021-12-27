@@ -1,4 +1,4 @@
-let random_int () = Random.full_int Int.max_int
+let random_int () = Random.int 0x3FFFFFFF
 
 module Key = struct
   include Int
